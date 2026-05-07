@@ -1,5 +1,6 @@
 local softtree = {}
 
+--- O(1)
 local function getConst(t)
 	local proxy = {}
 	local mt = {
@@ -12,10 +13,14 @@ local function getConst(t)
 	return setmetatable(proxy, mt)
 end
 
+--- O(1)
 function softtree.newNode(parentTags, entity, load, unload, update)
 	local node = {
 		parentTags = parentTags or {},
 		parents = {},
+		children = {},
+		inDegree = 0,
+		outDegree = 0,
 		entity = entity or {},
 		ready = false,
 		dirty = true,
@@ -34,6 +39,7 @@ function softtree.newNode(parentTags, entity, load, unload, update)
 	return node
 end
 
+--- O(1)
 local function insert(tree, tag, node)
 	tag = tag or tostring(node)
 	assert(tree.nodeDict[tag] == nil)
@@ -41,6 +47,7 @@ local function insert(tree, tag, node)
 	tree.dirty = true
 end
 
+--- O(1)
 local function remove(tree, tag, node)
 	tag = tag or tostring(node)
 	if tree.nodeDict[tag] == node then
@@ -49,50 +56,66 @@ local function remove(tree, tag, node)
 	end
 end
 
-local function getOptimizedNodeArray(nodeDict)
-	local inDegree = {}
-	local children = {}
-	local result = {}
-	local queue = {}
-
-	-- 1. 初始化入度表和反向引用表（子节点表）
+--- O(n + m)
+local function setParentsAndChildren(nodeDict)
 	for _, node in pairs(nodeDict) do
-		inDegree[node] = #node.parentTags
-		if inDegree[node] == 0 then
-			table.insert(queue, node)
-		end
-
-		-- 构建反向映射，方便依赖更新
+		node.parents = {}
+		node.children = {}
+		node.inDegree = 0
+		node.outDegree = 0
+	end
+	for tag, node in pairs(nodeDict) do
 		for _, parentTag in ipairs(node.parentTags) do
 			local parent = nodeDict[parentTag]
-			children[parent] = children[parent] or {}
-			table.insert(children[parent], node)
+			parent.children[tag] = node
+			parent.outDegree = parent.outDegree + 1
+
+			node.parents[parentTag] = parent.const
+			node.inDegree = node.inDegree + 1
 		end
 	end
+	for tag, node in pairs(nodeDict) do
+		print(tag, node.inDegree, node.outDegree)
+	end
+end
 
-	-- 2. 处理队列
-	local head = 1
-	while head <= #queue do
-		local current = queue[head]
-		head = head + 1
-		table.insert(result, current)
+--- O(n * m)
+local function getOptimizedNodeArray(nodeDict)
+	local inDegree = {}
+	local sorted = 0
+	local array = {}
+	local count = 0
 
-		local subs = children[current]
-		if subs then
-			for _, child in ipairs(subs) do
-				inDegree[child] = inDegree[child] - 1
-				if inDegree[child] == 0 then
-					table.insert(queue, child)
+	for _, node in pairs(nodeDict) do
+		array[#array + 1] = node
+		inDegree[node] = node.inDegree
+		count = count + 1
+	end
+
+	local loop = true
+	while loop do
+		loop = false
+		for i = sorted + 1, #array do
+			local node = array[i]
+			if inDegree[node] == 0 then
+				loop = true
+				sorted = sorted + 1
+				array[i] = array[sorted]
+				array[sorted] = node
+				for _, child in pairs(node.children) do
+					inDegree[child] = inDegree[child] - 1
 				end
 			end
 		end
 	end
 
-	-- 3. 写回原数组
-	return result
+	assert(sorted == count)
+
+	return array
 end
 
 local function loadTree(tree)
+	setParentsAndChildren(tree.nodeDict)
 	tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
 	tree.ready = true
 	for _, node in ipairs(tree.nodeArray) do
