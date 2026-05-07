@@ -208,16 +208,22 @@ local function getTagged(tree, tag)
     return tree.nodeDict[tag]
 end
 
+--- Generates a Mermaid.js graph string representing the tree structure. Complexity: O(n+m).
+--- @param tree table The tree instance to visualize.
+--- @return string A string formatted in Mermaid syntax for graph rendering.
 local function getMermaid(tree)
-	local mermaid = { "graph" }
-	for tag, node in pairs(tree.nodeDict) do
-		table.insert(mermaid, string.format('%p["%s"]', node, tag))
-		for _, parentTag in ipairs(node.parentTags) do
-			local parent = tree.nodeDict[parentTag]
-			table.insert(mermaid, string.format("%p", parent) .. "-->" .. string.format("%p", node))
-		end
-	end
-	return table.concat(mermaid, "\n")
+    local mermaid = { "graph" }
+    for tag, node in pairs(tree.nodeDict) do
+        -- Use pointer addresses as unique IDs for Mermaid nodes
+        table.insert(mermaid, string.format('%p["%s"]', node, tag))
+        for _, parentTag in ipairs(node.parentTags) do
+            local parent = tree.nodeDict[parentTag]
+            if parent then
+                table.insert(mermaid, string.format("%p", parent) .. "-->" .. string.format("%p", node))
+            end
+        end
+    end
+    return table.concat(mermaid, "\n")
 end
 
 --- Initializes a new softtree instance. Complexity: O(1).
@@ -237,6 +243,8 @@ function softtree.newTree()
         unload = unloadTree,
         update = updateTree,
         getTagged = getTagged,
+        
+        getMermaid = getMermaid,
     }
     setmetatable(tree, {
         __newindex = function()
