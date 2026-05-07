@@ -3,4 +3,5 @@ README_CN2.md
 .DS_Store
 **/.DS_Store
 graph.md
+conf.lua
 main.lua
