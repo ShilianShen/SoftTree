@@ -1,8 +1,21 @@
 local softtree = {}
 
-function softtree.newNode(parents, entity, load, unload, update)
+local function getConst(t)
+	local proxy = {}
+	local mt = {
+		__index = t,
+		__newindex = function(_, k, v)
+			error("Attempt to modify a read-only table", 2)
+		end,
+		__metatable = false,
+	}
+	return setmetatable(proxy, mt)
+end
+
+function softtree.newNode(parentTags, entity, load, unload, update)
 	local node = {
-		parents = parents or {},
+		parentTags = parentTags or {},
+		parents = {},
 		entity = entity or {},
 		ready = false,
 		dirty = true,
@@ -11,17 +24,24 @@ function softtree.newNode(parents, entity, load, unload, update)
 		update = update,
 		unload = unload,
 	}
+	node.const = getConst(node.entity)
+	setmetatable(node, {
+		__newindex = function()
+			assert(false)
+		end,
+		__metatable = false,
+	})
 	return node
 end
 
-local function insert(tree, node, tag)
+local function insert(tree, tag, node)
 	tag = tag or tostring(node)
 	assert(tree.nodeDict[tag] == nil)
 	tree.nodeDict[tag] = node
 	tree.dirty = true
 end
 
-local function remove(tree, node, tag)
+local function remove(tree, tag, node)
 	tag = tag or tostring(node)
 	if tree.nodeDict[tag] == node then
 		tree.nodeDict[tag] = nil
@@ -37,13 +57,14 @@ local function getOptimizedNodeArray(nodeDict)
 
 	-- 1. 初始化入度表和反向引用表（子节点表）
 	for _, node in pairs(nodeDict) do
-		inDegree[node] = #node.parents
+		inDegree[node] = #node.parentTags
 		if inDegree[node] == 0 then
 			table.insert(queue, node)
 		end
 
 		-- 构建反向映射，方便依赖更新
-		for _, parent in ipairs(node.parents) do
+		for _, parentTag in ipairs(node.parentTags) do
+			local parent = nodeDict[parentTag]
 			children[parent] = children[parent] or {}
 			table.insert(children[parent], node)
 		end
@@ -77,7 +98,11 @@ local function loadTree(tree)
 	for _, node in ipairs(tree.nodeArray) do
 		if not node.ready then
 			if node.load ~= nil then
-				node.load()
+				local parents = {}
+				for _, parentTag in ipairs(node.parentTags) do
+					parents[parentTag] = tree.nodeDict[parentTag].const
+				end
+				node.load(node.entity, parents)
 			end
 			node.ready = true
 		end
@@ -88,7 +113,11 @@ local function unloadTree(tree)
 	for _, node in ipairs(tree.nodeArray) do
 		if node.ready then
 			if node.unload ~= nil then
-				node.unload()
+				local parents = {}
+				for _, parentTag in ipairs(node.parentTags) do
+					parents[parentTag] = tree.nodeDict[parentTag].const
+				end
+				node.unload(node.entity, parents)
 			end
 			node.ready = false
 		end
@@ -100,10 +129,17 @@ end
 local function updateTree(tree)
 	if tree.dirty then
 		tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
+		for _, node in pairs(tree.nodeDict) do
+			node.parents = {}
+			for _, parentTag in ipairs(node.parentTags) do
+				node.parents[parentTag] = tree.nodeDict[parentTag].const
+			end
+		end
 		tree.dirty = false
 	end
 	for _, node in ipairs(tree.nodeArray) do
-		for _, parent in ipairs(node.parents) do
+		for _, parentTag in ipairs(node.parentTags) do
+			local parent = tree.nodeDict[parentTag]
 			if node.dirty or parent.dirty then
 				node.dirty = true
 				break
@@ -114,8 +150,8 @@ local function updateTree(tree)
 		if node.dirty then
 			if node.update ~= nil then
 				local parents = {}
-				for _, parent in ipairs(node.parents) do
-					table.insert(parents, parent.entity)
+				for _, parentTag in ipairs(node.parentTags) do
+					parents[parentTag] = tree.nodeDict[parentTag].const
 				end
 				node.update(node.entity, parents)
 			end
@@ -132,7 +168,8 @@ local function getMermaid(tree)
 	local mermaid = { "graph" }
 	for tag, node in pairs(tree.nodeDict) do
 		table.insert(mermaid, string.format('%p["%s"]', node, tag))
-		for _, parent in ipairs(node.parents) do
+		for _, parentTag in ipairs(node.parentTags) do
+			local parent = tree.nodeDict[parentTag]
 			table.insert(mermaid, string.format("%p", parent) .. "-->" .. string.format("%p", node))
 		end
 	end
@@ -156,7 +193,13 @@ function softtree.newTree()
 
 		getMermaid = getMermaid,
 	}
-	tree:insert(tree.root, "root")
+	setmetatable(tree, {
+		__newindex = function()
+			assert(false)
+		end,
+		__metatable = false,
+	})
+	tree:insert("root", tree.root)
 	return tree
 end
 
