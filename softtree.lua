@@ -68,9 +68,6 @@ local function setParentsAndChildren(nodeDict)
 			node.parents[parentTag] = parent
 		end
 	end
-	for tag, node in pairs(nodeDict) do
-		print(tag, node.inDegree, node.outDegree)
-	end
 end
 
 --- O(n^2)
@@ -136,7 +133,7 @@ end
 local function unloadTree(tree)
 	for _, node in ipairs(tree.nodeArray) do
 		if node.ready then
-			activateFunc(node, "unlaod")
+			activateFunc(node, "unload")
 			node.ready = false
 		end
 	end
