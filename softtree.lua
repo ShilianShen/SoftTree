@@ -1,9 +1,8 @@
 local softtree = {}
 
---- Creates a read-only proxy for a table.
+--- Wraps a table to make it read-only via a proxy. Complexity: O(1).
 --- @param t table The table to be protected.
---- @return table A proxy table that throws an error on modification.
---- @time O(1)
+--- @return table A read-only proxy table.
 local function getConst(t)
     local proxy = {}
     local mt = {
@@ -16,14 +15,13 @@ local function getConst(t)
     return setmetatable(proxy, mt)
 end
 
---- Creates a new node for the softtree.
+--- Creates a new tree node with specified lifecycle callbacks. Complexity: O(1).
 --- @param parentTags table|nil List of tags representing parent nodes.
 --- @param entity table|nil The data object associated with this node.
 --- @param load function|nil Callback triggered when the node is loaded.
 --- @param unload function|nil Callback triggered when the node is unloaded.
---- @param update function|nil Callback triggered during the update cycle.
+--- @param update function|nil Callback triggered when the node is updated.
 --- @return table The initialized node object.
---- @time O(1)
 function softtree.newNode(parentTags, entity, load, unload, update)
     local node = {
         parentTags = parentTags or {},
@@ -48,11 +46,10 @@ function softtree.newNode(parentTags, entity, load, unload, update)
     return node
 end
 
---- Inserts a node into the tree's dictionary.
+--- Inserts a node into the tree's dictionary. Complexity: O(1).
 --- @param tree table The tree instance.
---- @param tag string|nil Unique identifier for the node. Defaults to node's string representation.
---- @param node table The node object to insert.
---- @time O(1)
+--- @param tag string|nil Unique identifier for the node.
+--- @param node table The node instance to insert.
 local function insert(tree, tag, node)
     tag = tag or tostring(node)
     assert(tree.nodeDict[tag] == nil)
@@ -60,11 +57,10 @@ local function insert(tree, tag, node)
     tree.dirty = true
 end
 
---- Removes a node from the tree's dictionary.
+--- Removes a node from the tree's dictionary by tag. Complexity: O(1).
 --- @param tree table The tree instance.
---- @param tag string|nil Unique identifier for the node.
---- @param node table The node object to remove.
---- @time O(1)
+--- @param tag string|nil Unique identifier of the node.
+--- @param node table The node instance to remove.
 local function remove(tree, tag, node)
     tag = tag or tostring(node)
     if tree.nodeDict[tag] == node then
@@ -73,9 +69,8 @@ local function remove(tree, tag, node)
     end
 end
 
---- Rebuilds the parent-child relationships between nodes based on parentTags.
---- @param nodeDict table The dictionary containing all nodes in the tree.
---- @time O(n + m) where n is number of nodes and m is number of edges.
+--- Rebuilds parent and child references for all nodes in the dictionary. Complexity: O(n+m).
+--- @param nodeDict table Dictionary of all nodes in the tree.
 local function setParentsAndChildren(nodeDict)
     for _, node in pairs(nodeDict) do
         node.parents = {}
@@ -90,10 +85,9 @@ local function setParentsAndChildren(nodeDict)
     end
 end
 
---- Performs a topological sort to return an array of nodes in dependency order.
---- @param nodeDict table The dictionary of nodes.
---- @return table An ordered array of nodes.
---- @time O(n^2) due to the iterative search for zero in-degree nodes.
+--- Performs a topological sort to return an optimized execution array. Complexity: O(n^2).
+--- @param nodeDict table Dictionary of nodes to sort.
+--- @return table A list of nodes in dependency order.
 local function getOptimizedNodeArray(nodeDict)
     local inDegree = {}
     local sorted = 0
@@ -128,10 +122,9 @@ local function getOptimizedNodeArray(nodeDict)
     return array
 end
 
---- Executes a specific lifecycle function on a node, passing parent data as read-only proxies.
+--- Executes a specific lifecycle function on a node. Complexity: O(\delta^-(x)).
 --- @param node table The target node.
---- @param funcname string The name of the function to execute (e.g., "load", "update").
---- @time O(\delta^-(x)) proportional to the number of parents.
+--- @param funcname string The name of the function to invoke (e.g., "load", "update").
 local function activateFunc(node, funcname)
     if node[funcname] ~= nil then
         local params = {}
@@ -142,9 +135,8 @@ local function activateFunc(node, funcname)
     end
 end
 
---- Initializes the tree, sorts dependencies, and triggers the 'load' callback for all nodes.
+--- Rebuilds the tree structure and triggers 'load' for all nodes. Complexity: O(n).
 --- @param tree table The tree instance.
---- @time O(n)
 local function loadTree(tree)
     setParentsAndChildren(tree.nodeDict)
     tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
@@ -157,9 +149,8 @@ local function loadTree(tree)
     end
 end
 
---- Triggers the 'unload' callback for all nodes and clears the execution order.
+--- Triggers 'unload' for all nodes and clears the execution array. Complexity: O(n).
 --- @param tree table The tree instance.
---- @time O(n)
 local function unloadTree(tree)
     for _, node in ipairs(tree.nodeArray) do
         if node.ready then
@@ -171,9 +162,8 @@ local function unloadTree(tree)
     tree.nodeArray = nil
 end
 
---- Updates the tree state, rebuilding the graph if dirty and triggering 'update' callbacks.
+--- Updates dirty nodes and propagates dirtiness through the hierarchy. Complexity: O(n + m).
 --- @param tree table The tree instance.
---- @time O(n + m)
 local function updateTree(tree)
     if tree.dirty then
         setParentsAndChildren(tree.nodeDict)
@@ -191,18 +181,16 @@ local function updateTree(tree)
     end
 end
 
---- Retrieves a node from the tree by its tag.
+--- Retrieves a specific tag from the tree. Complexity: O(1).
 --- @param tree table The tree instance.
---- @param tag string The node identifier.
---- @return table|nil The node if found.
---- @time O(1)
+--- @param tag string The identifier to look up.
+--- @return any The value associated with the tag.
 local function getTagged(tree, tag)
     return tree.nodeDict[tag]
 end
 
---- Factory function to create and initialize a new softtree instance.
---- @return table The initialized tree object.
---- @time O(1)
+--- Initializes a new softtree instance. Complexity: O(1).
+--- @return table The new tree object.
 function softtree.newTree()
     local tree = {
         dirty = true,
@@ -217,8 +205,6 @@ function softtree.newTree()
         unload = unloadTree,
         update = updateTree,
         getTagged = getTagged,
-
-        getMermaid = getMermaid,
     }
     setmetatable(tree, {
         __newindex = function()
