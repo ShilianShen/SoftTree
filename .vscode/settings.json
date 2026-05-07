@@ -2,5 +2,11 @@
     "[lua]": {
         "editor.defaultFormatter": "JohnnyMorganz.stylua",
         "editor.formatOnSave": true
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.formatOnSave": true,
+        "editor.unicodeHighlight.ambiguousCharacters": false,
+        "editor.renderWhitespace": "all" 
     }
 }
