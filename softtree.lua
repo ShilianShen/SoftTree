@@ -208,6 +208,18 @@ local function getTagged(tree, tag)
     return tree.nodeDict[tag]
 end
 
+local function getMermaid(tree)
+	local mermaid = { "graph" }
+	for tag, node in pairs(tree.nodeDict) do
+		table.insert(mermaid, string.format('%p["%s"]', node, tag))
+		for _, parentTag in ipairs(node.parentTags) do
+			local parent = tree.nodeDict[parentTag]
+			table.insert(mermaid, string.format("%p", parent) .. "-->" .. string.format("%p", node))
+		end
+	end
+	return table.concat(mermaid, "\n")
+end
+
 --- Initializes a new softtree instance. Complexity: O(1).
 --- @return table The new tree object.
 function softtree.newTree()
