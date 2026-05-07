@@ -17,17 +17,16 @@ end
 function softtree.newNode(parentTags, entity, load, unload, update)
 	local node = {
 		parentTags = parentTags or {},
-		parents = {},
-		children = {},
-		inDegree = 0,
-		outDegree = 0,
 		entity = entity or {},
 		ready = false,
 		dirty = true,
 
 		load = load,
-		update = update,
 		unload = unload,
+		update = update,
+
+		parents = {},
+		children = {},
 	}
 	node.const = getConst(node.entity)
 	setmetatable(node, {
@@ -56,22 +55,17 @@ local function remove(tree, tag, node)
 	end
 end
 
---- O(n + m)
+--- O(n+m)
 local function setParentsAndChildren(nodeDict)
 	for _, node in pairs(nodeDict) do
 		node.parents = {}
 		node.children = {}
-		node.inDegree = 0
-		node.outDegree = 0
 	end
 	for tag, node in pairs(nodeDict) do
 		for _, parentTag in ipairs(node.parentTags) do
 			local parent = nodeDict[parentTag]
 			parent.children[tag] = node
-			parent.outDegree = parent.outDegree + 1
-
-			node.parents[parentTag] = parent.const
-			node.inDegree = node.inDegree + 1
+			node.parents[parentTag] = parent
 		end
 	end
 	for tag, node in pairs(nodeDict) do
@@ -79,7 +73,7 @@ local function setParentsAndChildren(nodeDict)
 	end
 end
 
---- O(n * m)
+--- O(n^2)
 local function getOptimizedNodeArray(nodeDict)
 	local inDegree = {}
 	local sorted = 0
@@ -88,7 +82,7 @@ local function getOptimizedNodeArray(nodeDict)
 
 	for _, node in pairs(nodeDict) do
 		array[#array + 1] = node
-		inDegree[node] = node.inDegree
+		inDegree[node] = #node.parentTags
 		count = count + 1
 	end
 
@@ -114,34 +108,35 @@ local function getOptimizedNodeArray(nodeDict)
 	return array
 end
 
+--- O(\delta^-(x))
+local function activateFunc(node, funcname)
+	if node[funcname] ~= nil then
+		local params = {}
+		for tag, parent in pairs(node.parents) do
+			params[tag] = parent.const
+		end
+		node[funcname](node.entity, params)
+	end
+end
+
+--- O(n)
 local function loadTree(tree)
 	setParentsAndChildren(tree.nodeDict)
 	tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
 	tree.ready = true
 	for _, node in ipairs(tree.nodeArray) do
 		if not node.ready then
-			if node.load ~= nil then
-				local parents = {}
-				for _, parentTag in ipairs(node.parentTags) do
-					parents[parentTag] = tree.nodeDict[parentTag].const
-				end
-				node.load(node.entity, parents)
-			end
+			activateFunc(node, "load")
 			node.ready = true
 		end
 	end
 end
 
+--- O(n)
 local function unloadTree(tree)
 	for _, node in ipairs(tree.nodeArray) do
 		if node.ready then
-			if node.unload ~= nil then
-				local parents = {}
-				for _, parentTag in ipairs(node.parentTags) do
-					parents[parentTag] = tree.nodeDict[parentTag].const
-				end
-				node.unload(node.entity, parents)
-			end
+			activateFunc(node, "unlaod")
 			node.ready = false
 		end
 	end
@@ -149,56 +144,30 @@ local function unloadTree(tree)
 	tree.nodeArray = nil
 end
 
+--- O(n + m)
 local function updateTree(tree)
 	if tree.dirty then
+		setParentsAndChildren(tree.nodeDict)
 		tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
-		for _, node in pairs(tree.nodeDict) do
-			node.parents = {}
-			for _, parentTag in ipairs(node.parentTags) do
-				node.parents[parentTag] = tree.nodeDict[parentTag].const
-			end
-		end
 		tree.dirty = false
 	end
 	for _, node in ipairs(tree.nodeArray) do
-		for _, parentTag in ipairs(node.parentTags) do
-			local parent = tree.nodeDict[parentTag]
-			if node.dirty or parent.dirty then
-				node.dirty = true
-				break
-			end
-		end
-	end
-	for _, node in ipairs(tree.nodeArray) do
 		if node.dirty then
-			if node.update ~= nil then
-				local parents = {}
-				for _, parentTag in ipairs(node.parentTags) do
-					parents[parentTag] = tree.nodeDict[parentTag].const
-				end
-				node.update(node.entity, parents)
+			for _, child in pairs(node.children) do
+				child.dirty = true
 			end
+			activateFunc(node, "update")
 			node.dirty = false
 		end
 	end
 end
 
+-- O(1)
 local function getTagged(tree, tag)
 	return tree[tag]
 end
 
-local function getMermaid(tree)
-	local mermaid = { "graph" }
-	for tag, node in pairs(tree.nodeDict) do
-		table.insert(mermaid, string.format('%p["%s"]', node, tag))
-		for _, parentTag in ipairs(node.parentTags) do
-			local parent = tree.nodeDict[parentTag]
-			table.insert(mermaid, string.format("%p", parent) .. "-->" .. string.format("%p", node))
-		end
-	end
-	return table.concat(mermaid, "\n")
-end
-
+-- O(1)
 function softtree.newTree()
 	local tree = {
 		dirty = true,
