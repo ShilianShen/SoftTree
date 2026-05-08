@@ -22,7 +22,7 @@ end
 --- @param unload function|nil Callback triggered when the node is unloaded.
 --- @param update function|nil Callback triggered when the node is updated.
 --- @return table The initialized node object.
-function softtree.newNode(parentTags, entity, load, unload, update)
+function softtree.newNode(parentTags, entity, load, unload, update, run)
     local node = {
         parentTags = parentTags or {},
         entity = entity or {},
@@ -33,6 +33,7 @@ function softtree.newNode(parentTags, entity, load, unload, update)
         load = load,
         unload = unload,
         update = update,
+        run = run,
 
         parents = {},
         children = {},
@@ -200,6 +201,12 @@ local function updateTree(tree)
     end
 end
 
+local function runTree(tree)
+    for _, node in ipairs(tree.nodeArray) do
+        activateFunc(node, "run")
+    end
+end
+
 --- Retrieves a specific tag from the tree. Complexity: O(1).
 --- @param tree table The tree instance.
 --- @param tag string The identifier to look up.
@@ -249,6 +256,7 @@ function softtree.newTree()
         load = loadTree,
         unload = unloadTree,
         update = updateTree,
+        run = runTree,
         getTagged = getTagged,
         setDirty = setDirty,
         
