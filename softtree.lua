@@ -208,6 +208,9 @@ local function getTagged(tree, tag)
     return tree.nodeDict[tag]
 end
 
+--- Marks a specific node as dirty to trigger its update in the next cycle. Complexity: O(1).
+--- @param tree table The tree instance.
+--- @param tag string The unique identifier of the node to be marked dirty.
 local function setDirty(tree, tag)
     tree.nodeDict[tag].dirty = true
 end
