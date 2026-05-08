@@ -208,6 +208,10 @@ local function getTagged(tree, tag)
     return tree.nodeDict[tag]
 end
 
+local function setDirty(tree, tag)
+    tree.nodeDict[tag].dirty = true
+end
+
 --- Generates a Mermaid.js graph string representing the tree structure. Complexity: O(n+m).
 --- @param tree table The tree instance to visualize.
 --- @return string A string formatted in Mermaid syntax for graph rendering.
@@ -243,6 +247,7 @@ function softtree.newTree()
         unload = unloadTree,
         update = updateTree,
         getTagged = getTagged,
+        setDirty = setDirty,
         
         getMermaid = getMermaid,
     }
