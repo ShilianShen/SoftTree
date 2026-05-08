@@ -162,6 +162,19 @@ local function activateFunc(node, funcname)
 	end
 end
 
+--- Propagates the dirty state down from parent nodes to their children.
+--- @param tree table The tree instance.
+--- Complexity: O(N * C) where N is the number of nodes and C is the average number of children per node.
+local function spreadDirty(tree)
+	for _, node in ipairs(tree.nodeArray) do
+		if node.dirty then
+			for _, child in pairs(node.children) do
+				child.dirty = true
+			end
+		end
+	end
+end
+
 --- Initializes the tree by sorting nodes and triggering 'load' callbacks.
 --- @param tree table The tree instance.
 --- Complexity: O(N + E) for sorting + O(N * P) for callbacks.
@@ -202,11 +215,9 @@ local function updateTree(tree)
 		setDepth(tree)
 		tree.dirty = false
 	end
+	spreadDirty(tree)
 	for _, node in ipairs(tree.nodeArray) do
 		if node.dirty then
-			for _, child in pairs(node.children) do
-				child.dirty = true
-			end
 			activateFunc(node, "update")
 			node.dirty = false
 		end
@@ -277,6 +288,7 @@ function softtree.newTree()
 		run = runTree,
 		getTagged = getTagged,
 		setDirty = setDirty,
+		spreadDirty = spreadDirty,
 
 		getMermaid = getMermaid,
 	}
