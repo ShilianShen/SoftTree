@@ -47,7 +47,7 @@ end
 
 local function remove(tree, tag, entity)
 	tag = tag or tostring(entity)
-	if tree.nodeDict[tag].entity == entity then
+	if tree.nodeDict[tag] ~= nil then
 		tree.nodeDict[tag] = nil
 		tree.dirty = true
 	end
