@@ -20,12 +20,11 @@ end
 --- @param parentTags table|nil List of string tags identifying parent nodes.
 --- @param entity table|nil The data object managed by this node.
 --- @param load function|nil Callback executed when the node is loaded.
---- @param unload function|nil Callback executed when the node is unloaded.
 --- @param update function|nil Callback executed when the node is marked dirty.
 --- @param run function|nil Callback executed during the tree's run cycle.
 --- @return table The initialized node object.
 --- Complexity: O(1)
-function softtree.newNode(parentTags, entity, load, unload, update, run)
+function softtree.newNode(parentTags, entity, load, update, run)
 	local node = {
 		parentTags = parentTags or {},
 		entity = entity or {},
@@ -34,7 +33,6 @@ function softtree.newNode(parentTags, entity, load, unload, update, run)
 		depth = 0,
 
 		load = load,
-		unload = unload,
 		update = update,
 		run = run,
 
@@ -150,7 +148,7 @@ end
 
 --- Safely invokes a specific callback function on a node, passing parent data.
 --- @param node table The target node.
---- @param funcname string The name of the function to call ('load', 'unload', etc.).
+--- @param funcname string The name of the function to call ('load', etc.).
 --- Complexity: O(P) where P is the number of node parents.
 local function activateFunc(node, funcname)
 	if node[funcname] ~= nil then
@@ -189,20 +187,6 @@ local function loadTree(tree)
 			node.ready = true
 		end
 	end
-end
-
---- Deactivates all nodes and triggers 'unload' callbacks.
---- @param tree table The tree instance.
---- Complexity: O(N * P) where N is number of nodes, P is average parents.
-local function unloadTree(tree)
-	for _, node in ipairs(tree.nodeArray) do
-		if node.ready then
-			activateFunc(node, "unload")
-			node.ready = false
-		end
-	end
-	tree.ready = false
-	tree.nodeArray = nil
 end
 
 --- Refreshes the tree structure if dirty and triggers 'update' for dirty nodes.
@@ -283,7 +267,6 @@ function softtree.newTree()
 		insert = insert,
 		remove = remove,
 		load = loadTree,
-		unload = unloadTree,
 		update = updateTree,
 		run = runTree,
 		getTagged = getTagged,
