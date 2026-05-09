@@ -1,9 +1,17 @@
+--- Softtree — a lightweight dependency-graph scheduler for Lua.
+-- Manages a directed acyclic graph (DAG) of nodes, each carrying an entity
+-- and optional `load`, `update`, and `run` lifecycle callbacks. On every
+-- `tick`, the tree performs a topological sort, propagates staleness and
+-- dirtiness from parents to children, and invokes the appropriate callbacks
+-- in dependency order.
+
 local softtree = {}
 
----@brief Wraps a table to make it read-only via a proxy.
----@param t table The target table to protect.
----@return table proxy The read-only proxy table.
----@note Complexity: Time O(1), Space O(1)
+--- Wraps a table in a read-only proxy.
+-- Any attempt to write through the proxy raises an error. The original
+-- table remains mutable via its direct reference.
+-- @param t table  The table to protect.
+-- @return table  A read-only proxy for `t`.
 local function getConst(t)
 	local proxy = {}
 	local mt = {
@@ -16,20 +24,22 @@ local function getConst(t)
 	return setmetatable(proxy, mt)
 end
 
----@brief Initializes a new tree node with specified lifecycle callbacks and dependencies.
----@param parentTags string[]|nil List of tags identifying parent nodes.
----@param entity table|nil The data object associated with this node.
----@param load function|nil Callback for resource loading.
----@param update function|nil Callback for logic re-calculation.
----@param run function|nil Callback for per-tick execution.
----@return table node The initialized node object.
----@note Complexity: Time O(1), Space O(1)
+--- Creates a new node for use in a softtree.
+-- The returned node is itself write-protected; all mutable state lives inside
+-- `node.entity`. `node.const` exposes a read-only view of `entity` that is
+-- passed to parent-parameter tables in lifecycle callbacks.
+-- @param parentTags table   Ordered list of tag strings identifying this node's parents. Defaults to `{}`.
+-- @param entity     table   Arbitrary user data carried by the node. Defaults to `{}`.
+-- @param load       function|nil  Called once when the node is marked stale, before `update`.
+-- @param update     function|nil  Called whenever the node is dirty (including after a load).
+-- @param run        function|nil  Called on every tick regardless of dirty/stale state.
+-- @return table  A new, write-protected node table.
 function softtree.newNode(parentTags, entity, load, update, run)
 	local node = {
 		parentTags = parentTags or {},
 		entity = entity or {},
-		stale = true, -- Indicates resource reloading is required
-		dirty = true, -- Indicates logic re-calculation is required
+		stale = true,
+		dirty = true,
 		depth = 0,
 
 		load = load,
@@ -49,11 +59,12 @@ function softtree.newNode(parentTags, entity, load, update, run)
 	return node
 end
 
----@brief Registers a node into the tree and marks the tree structure as dirty.
----@param tree table The tree instance.
----@param tag string|nil Unique identifier; defaults to node memory address.
----@param node table The node instance to insert.
----@note Complexity: Time O(1), Space O(1)
+--- Inserts a node into the tree under the given tag.
+-- Asserts that the tag is not already occupied. Marks the tree dirty so the
+-- next `tick` rebuilds the sorted node array.
+-- @param tree table   The softtree to insert into.
+-- @param tag  string  Unique string key for the node. Defaults to `tostring(node)` when `nil`.
+-- @param node table   The node to insert.
 local function insert(tree, tag, node)
 	tag = tag or tostring(node)
 	assert(tree.nodeDict[tag] == nil)
@@ -61,11 +72,12 @@ local function insert(tree, tag, node)
 	tree.dirty = true
 end
 
----@brief Removes a node from the tree and marks the tree structure as dirty.
----@param tree table The tree instance.
----@param tag string|nil Unique identifier.
----@param node table The node instance to remove.
----@note Complexity: Time O(1), Space O(1)
+--- Removes a node from the tree if its tag maps to the given node.
+-- Silently does nothing if the tag is absent or maps to a different node.
+-- Marks the tree dirty so the next `tick` rebuilds the sorted node array.
+-- @param tree table   The softtree to remove from.
+-- @param tag  string  Tag key of the node to remove. Defaults to `tostring(node)` when `nil`.
+-- @param node table   The node expected at `tag`; removal is skipped if the tag maps elsewhere.
 local function remove(tree, tag, node)
 	tag = tag or tostring(node)
 	if tree.nodeDict[tag] == node then
@@ -74,9 +86,11 @@ local function remove(tree, tag, node)
 	end
 end
 
----@brief Computes and assigns the hierarchical depth for every node in the sorted array.
----@param tree table The tree instance.
----@note Complexity: Time O(N + E), Space O(1)
+--- Computes and assigns the depth of every node in the sorted node array.
+-- Depth is defined as 1 for root nodes (those with no parent tags) and
+-- `max(parent.depth) + 1` for all others. Also updates `tree.depth` to the
+-- maximum depth found.
+-- @param tree table  The softtree whose node depths are to be recalculated.
 local function _setDepth(tree)
 	tree.depth = 0
 	for i, node in ipairs(tree.nodeArray) do
@@ -91,9 +105,11 @@ local function _setDepth(tree)
 	end
 end
 
----@brief Rebuilds the parent-child adjacency pointers based on registered parentTags.
----@param nodeDict table<string, table> Dictionary of tags to nodes.
----@note Complexity: Time O(N + E), Space O(E)
+--- Rebuilds the `parents` and `children` tables for every node in `nodeDict`.
+-- Clears all existing parent/child references before re-deriving them from
+-- each node's `parentTags` list. Tags that do not resolve to a node in
+-- `nodeDict` are silently skipped.
+-- @param nodeDict table  A tag-to-node mapping (e.g., `tree.nodeDict`).
 local function _setParentsAndChildren(nodeDict)
 	for _, node in pairs(nodeDict) do
 		node.parents = {}
@@ -108,10 +124,11 @@ local function _setParentsAndChildren(nodeDict)
 	end
 end
 
----@brief Performs topological sorting to generate an optimized execution order.
----@param nodeDict table<string, table> The dictionary of all nodes.
----@return table[] nodeArray Array of nodes ordered by dependency.
----@note Complexity: Time O(N * (N + E)) in worst case for this specific loop, Space O(N)
+--- Produces a topologically sorted array of nodes from `nodeDict`.
+-- Uses Kahn's algorithm (in-degree reduction). Asserts that the graph is
+-- acyclic; a cycle causes the assertion `sorted == count` to fail.
+-- @param nodeDict table  A tag-to-node mapping whose nodes have up-to-date `parentTags` and `children`.
+-- @return table  An array of all nodes ordered so every parent precedes its children.
 local function _getOptimizedNodeArray(nodeDict)
 	local inDegree = {}
 	local sorted = 0
@@ -146,10 +163,11 @@ local function _getOptimizedNodeArray(nodeDict)
 	return array
 end
 
----@brief Invokes a specific lifecycle function on a node with parent data context.
----@param node table The target node.
----@param funcname string The name of the function to call ("load", "update", or "run").
----@note Complexity: Time O(P) where P is parent count, Space O(P)
+--- Invokes a named lifecycle callback on a node if it is defined.
+-- Builds a `params` table mapping each parent tag to its read-only `const`
+-- view, then calls `node[funcname](node.entity, params)`.
+-- @param node     table   The node whose callback is to be activated.
+-- @param funcname string  Name of the callback field (`"load"`, `"update"`, or `"run"`).
 local function _activateFunc(node, funcname)
 	if node[funcname] ~= nil then
 		local params = {}
@@ -160,9 +178,11 @@ local function _activateFunc(node, funcname)
 	end
 end
 
----@brief Propagates stale and dirty states down the dependency graph.
----@param nodeArray table[] Sorted array of nodes.
----@note Complexity: Time O(N + E), Space O(1)
+--- Propagates staleness and dirtiness from parents to children in topological order.
+-- A stale node marks all its children both stale and dirty. A non-stale but
+-- dirty node marks all its children dirty only. Traversal assumes `nodeArray`
+-- is already topologically sorted.
+-- @param nodeArray table  A topologically sorted array of nodes (e.g., `tree.nodeArray`).
 local function _spread(nodeArray)
 	for _, node in ipairs(nodeArray) do
 		if node.stale then
@@ -178,9 +198,12 @@ local function _spread(nodeArray)
 	end
 end
 
----@brief Processes the entire tree, handling structural updates, state spread, and lifecycle execution.
----@param tree table The tree instance to process.
----@note Complexity: Time O(N + E), Space O(N + E) (when rebuilding structure)
+--- Advances the tree by one tick, invoking all pending lifecycle callbacks.
+-- Rebuilds the sorted node array and depth data when the tree is marked dirty.
+-- Then spreads staleness/dirtiness, calls `load` on stale nodes (clearing
+-- stale, setting dirty), calls `update` on dirty nodes (clearing dirty), and
+-- calls `run` on every node unconditionally.
+-- @param tree table  The softtree to tick.
 local function tickTree(tree)
 	if tree.dirty then
 		_setParentsAndChildren(tree.nodeDict)
@@ -195,6 +218,7 @@ local function tickTree(tree)
 		if node.stale then
 			_activateFunc(node, "load")
 			node.stale = false
+			node.dirty = true
 		end
 		if node.dirty then
 			_activateFunc(node, "update")
@@ -204,35 +228,39 @@ local function tickTree(tree)
 	end
 end
 
----@brief Retrieves a node by its tag.
----@param tree table The tree instance.
----@param tag string The node identifier.
----@return table|nil node The found node or nil.
----@note Complexity: Time O(1), Space O(1)
+--- Retrieves the node registered under the given tag.
+-- Returns `nil` if no node is registered under `tag`.
+-- @param tree table   The softtree to query.
+-- @param tag  string  The tag key to look up.
+-- @return table|nil  The node associated with `tag`, or `nil` if absent.
 local function getTagged(tree, tag)
 	return tree.nodeDict[tag]
 end
 
----@brief Explicitly marks a specific node as stale.
----@param tree table The tree instance.
----@param tag string The node identifier.
----@note Complexity: Time O(1), Space O(1)
+--- Marks the node registered under `tag` as stale.
+-- A stale node will have its `load` callback invoked on the next `tick`,
+-- and its dirtiness and staleness will propagate to its children via `_spread`.
+-- @param tree table   The softtree containing the target node.
+-- @param tag  string  The tag key of the node to mark stale.
 local function setStale(tree, tag)
 	tree.nodeDict[tag].stale = true
 end
 
----@brief Explicitly marks a specific node as dirty.
----@param tree table The tree instance.
----@param tag string The node identifier.
----@note Complexity: Time O(1), Space O(1)
+--- Marks the node registered under `tag` as dirty.
+-- A dirty node will have its `update` callback invoked on the next `tick`.
+-- Dirtiness propagates to children via `_spread`.
+-- @param tree table   The softtree containing the target node.
+-- @param tag  string  The tag key of the node to mark dirty.
 local function setDirty(tree, tag)
 	tree.nodeDict[tag].dirty = true
 end
 
----@brief Generates a Mermaid.js compatible string representing the tree structure.
----@param tree table The tree instance.
----@return string mermaid The formatted graph string.
----@note Complexity: Time O(N + E), Space O(N + E)
+--- Generates a Mermaid graph definition for the tree's current node structure.
+-- Each node is represented by its pointer address as a unique identifier and
+-- its tag as a display label. Only edges whose parent tag resolves to a node
+-- in `nodeDict` are emitted.
+-- @param tree table  The softtree to visualize.
+-- @return string  A Mermaid `graph` definition string suitable for rendering.
 local function getMermaid(tree)
 	local mermaid = { "graph" }
 	for tag, node in pairs(tree.nodeDict) do
@@ -247,9 +275,22 @@ local function getMermaid(tree)
 	return table.concat(mermaid, "\n")
 end
 
----@brief Creates a new softtree instance.
----@return table tree The tree container object.
----@note Complexity: Time O(1), Space O(1)
+--- Creates a new, empty softtree with a pre-inserted root node.
+-- The returned tree is write-protected at the top level. The root node is
+-- inserted under the tag `"root"` and serves as the conventional ancestor
+-- for all other nodes in the graph.
+-- @return table  A new softtree table with `insert`, `remove`, `tick`,
+--                `getTagged`, `getMermaid`, `setStale`, `setDirty`, and
+--                `spread` methods bound to it.
+-- @usage
+--   local softtree = require("softtree")
+--   local tree = softtree.newTree()
+--   local node = softtree.newNode({"root"}, {value = 0},
+--     function(entity, parents) entity.value = 1 end,
+--     function(entity, parents) print(entity.value) end
+--   )
+--   tree:insert("myNode", node)
+--   tree:tick()
 function softtree.newTree()
 	local tree = {
 		dirty = true,
