@@ -1,9 +1,9 @@
 local softtree = {}
 
---- Wraps a table to make it read-only using a proxy and metatable.
---- @param t table The table to be protected.
---- @return table A read-only proxy of the table.
---- Complexity: O(1)
+---@brief Wraps a table in a read-only proxy to prevent external modification.
+---@param t table The target table to protect.
+---@return table proxy The read-only proxy table.
+---@note Complexity: Time O(1), Space O(1)
 local function getConst(t)
 	local proxy = {}
 	local mt = {
@@ -16,14 +16,14 @@ local function getConst(t)
 	return setmetatable(proxy, mt)
 end
 
---- Creates a new node for the tree.
---- @param parentTags table|nil List of string tags identifying parent nodes.
---- @param entity table|nil The data object managed by this node.
---- @param load function|nil Callback executed when the node is loaded.
---- @param update function|nil Callback executed when the node is marked dirty.
---- @param run function|nil Callback executed during the tree's run cycle.
---- @return table The initialized node object.
---- Complexity: O(1)
+---@brief Initializes a new tree node with specified lifecycle callbacks.
+---@param parentTags string[]|nil List of tags identifying parent nodes.
+---@param entity table|nil The data object managed by this node.
+---@param load function|nil Callback triggered when node is `stale`.
+---@param update function|nil Callback triggered when node is `dirty`.
+---@param run function|nil Callback triggered every tick.
+---@return table node The initialized node object.
+---@note Complexity: Time O(1), Space O(1)
 function softtree.newNode(parentTags, entity, load, update, run)
 	local node = {
 		parentTags = parentTags or {},
@@ -49,11 +49,11 @@ function softtree.newNode(parentTags, entity, load, update, run)
 	return node
 end
 
---- Inserts a node into the tree's dictionary.
---- @param tree table The tree instance.
---- @param tag string|nil Unique identifier for the node (defaults to node pointer string).
---- @param node table The node instance to insert.
---- Complexity: O(1)
+---@brief Registers a node into the tree's registry and marks the tree as dirty.
+---@param tree table The tree instance.
+---@param tag string|nil Unique identifier for the node.
+---@param node table The node object to insert.
+---@note Complexity: Time O(1), Space O(1)
 local function insert(tree, tag, node)
 	tag = tag or tostring(node)
 	assert(tree.nodeDict[tag] == nil)
@@ -61,11 +61,11 @@ local function insert(tree, tag, node)
 	tree.dirty = true
 end
 
---- Removes a node from the tree's dictionary.
---- @param tree table The tree instance.
---- @param tag string|nil Unique identifier of the node.
---- @param node table The node instance to remove.
---- Complexity: O(1)
+---@brief Removes a node from the tree's registry by its tag.
+---@param tree table The tree instance.
+---@param tag string|nil The unique identifier of the node.
+---@param node table The node object to verify and remove.
+---@note Complexity: Time O(1), Space O(1)
 local function remove(tree, tag, node)
 	tag = tag or tostring(node)
 	if tree.nodeDict[tag] == node then
@@ -74,10 +74,27 @@ local function remove(tree, tag, node)
 	end
 end
 
---- Rebuilds parent-child references across all nodes in the dictionary.
---- @param nodeDict table Dictionary of all nodes in the tree.
---- Complexity: O(N * P) where N is number of nodes, P is average number of parent tags.
-local function setParentsAndChildren(nodeDict)
+---@brief Calculates the hierarchical depth for each node in the sorted array.
+---@param tree table The tree instance containing the sorted nodeArray.
+---@note Complexity: Time O(N + E), Space O(1)
+local function _setDepth(tree)
+	tree.depth = 0
+	for i, node in ipairs(tree.nodeArray) do
+		node.depth = 0
+		if #node.parentTags == 0 then
+			node.depth = 1
+		end
+		for _, parent in pairs(node.parents) do
+			node.depth = math.max(node.depth, parent.depth + 1)
+		end
+		tree.depth = math.max(tree.depth, node.depth)
+	end
+end
+
+---@brief Reconstructs child-parent references based on string tags.
+---@param nodeDict table<string, table> The dictionary of all active nodes.
+---@note Complexity: Time O(N + E), Space O(E)
+local function _setParentsAndChildren(nodeDict)
 	for _, node in pairs(nodeDict) do
 		node.parents = {}
 		node.children = {}
@@ -91,11 +108,11 @@ local function setParentsAndChildren(nodeDict)
 	end
 end
 
---- Performs a topological sort on the nodes based on parent-child dependencies.
---- @param nodeDict table Dictionary of nodes.
---- @return table A sorted array of nodes.
---- Complexity: O(N + E) where N is number of nodes, E is number of dependency edges.
-local function getOptimizedNodeArray(nodeDict)
+---@brief Performs a topological sort to establish a valid execution order.
+---@param nodeDict table<string, table> The dictionary of all nodes.
+---@return table[] array An array of nodes ordered by dependency.
+---@note Complexity: Time O(N * (N + E)) in worst-case search, Space O(N)
+local function _getOptimizedNodeArray(nodeDict)
 	local inDegree = {}
 	local sorted = 0
 	local array = {}
@@ -129,28 +146,11 @@ local function getOptimizedNodeArray(nodeDict)
 	return array
 end
 
---- Calculates the depth level of each node in the tree and the total tree depth.
---- @param tree table The tree instance.
---- Complexity: O(N * P) where N is number of nodes, P is average number of parents.
-local function setDepth(tree)
-	tree.depth = 0
-	for i, node in ipairs(tree.nodeArray) do
-		node.depth = 0
-		if #node.parentTags == 0 then
-			node.depth = 1
-		end
-		for _, parent in pairs(node.parents) do
-			node.depth = math.max(node.depth, parent.depth + 1)
-		end
-		tree.depth = math.max(tree.depth, node.depth)
-	end
-end
-
---- Safely invokes a specific callback function on a node, passing parent data.
---- @param node table The target node.
---- @param funcname string The name of the function to call ('load', etc.).
---- Complexity: O(P) where P is the number of node parents.
-local function activateFunc(node, funcname)
+---@brief Executes a specific lifecycle function on a node with parent data injected.
+---@param node table The target node.
+---@param funcname string The name of the function to invoke ('load', 'update', or 'run').
+---@note Complexity: Time O(Parents of N), Space O(Parents of N)
+local function _activateFunc(node, funcname)
 	if node[funcname] ~= nil then
 		local params = {}
 		for tag, parent in pairs(node.parents) do
@@ -160,12 +160,17 @@ local function activateFunc(node, funcname)
 	end
 end
 
---- Propagates the dirty state down from parent nodes to their children.
---- @param tree table The tree instance.
---- Complexity: O(N * C) where N is the number of nodes and C is the average number of children per node.
-local function spreadDirty(tree)
-	for _, node in ipairs(tree.nodeArray) do
-		if node.dirty then
+---@brief Propagates `stale` and `dirty` states down the dependency graph.
+---@param nodeArray table[] The topologically sorted node array.
+---@note Complexity: Time O(N + E), Space O(1)
+local function _spread(nodeArray)
+	for _, node in ipairs(nodeArray) do
+		if node.stale then
+			for _, child in pairs(node.children) do
+				child.stale = true
+				child.dirty = true
+			end
+		elseif node.dirty then
 			for _, child in pairs(node.children) do
 				child.dirty = true
 			end
@@ -173,71 +178,53 @@ local function spreadDirty(tree)
 	end
 end
 
---- Initializes the tree by sorting nodes and triggering 'load' callbacks.
---- @param tree table The tree instance.
---- Complexity: O(N + E) for sorting + O(N * P) for callbacks.
-local function loadTree(tree)
-	setParentsAndChildren(tree.nodeDict)
-	tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
-	setDepth(tree)
-	tree.stale = false
-	for _, node in ipairs(tree.nodeArray) do
-		if node.stale then
-			activateFunc(node, "load")
-			node.stale = false
-		end
-	end
-end
-
---- Refreshes the tree structure if dirty and triggers 'update' for dirty nodes.
---- @param tree table The tree instance.
---- Complexity: O(N + E) if dirty; otherwise O(N * C) where C is average children.
-local function updateTree(tree)
+---@brief Orchestrates the full tree lifecycle including rebuilding, spreading, and execution.
+---@param tree table The tree instance to process.
+---@note Complexity: Time O(N * (N + E)) if tree is dirty, else O(N + E), Space O(N + E)
+local function tickTree(tree)
 	if tree.dirty then
-		setParentsAndChildren(tree.nodeDict)
-		tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
-		setDepth(tree)
+		_setParentsAndChildren(tree.nodeDict)
+		tree.nodeArray = _getOptimizedNodeArray(tree.nodeDict)
+		_setDepth(tree)
 		tree.dirty = false
 	end
-	spreadDirty(tree)
+
+	_spread(tree.nodeArray)
+
 	for _, node in ipairs(tree.nodeArray) do
+		if node.stale then
+			_activateFunc(node, "load")
+			node.stale = false
+		end
 		if node.dirty then
-			activateFunc(node, "update")
+			_activateFunc(node, "update")
 			node.dirty = false
 		end
+		_activateFunc(node, "run")
 	end
 end
 
---- Iterates through all nodes and triggers their 'run' callbacks.
---- @param tree table The tree instance.
---- Complexity: O(N * P).
-local function runTree(tree)
-	for _, node in ipairs(tree.nodeArray) do
-		activateFunc(node, "run")
-	end
-end
-
---- Retrieves a node by its tag.
---- @param tree table The tree instance.
---- @param tag string The node identifier.
---- @return table|nil The requested node.
---- Complexity: O(1).
+---@brief Retrieves a node from the tree by its unique tag.
+---@param tree table The tree instance.
+---@param tag string The tag to search for.
+---@return table|nil node The found node or nil.
+---@note Complexity: Time O(1), Space O(1)
 local function getTagged(tree, tag)
 	return tree.nodeDict[tag]
 end
 
---- Marks a specific node as dirty.
---- @param tree table The tree instance.
---- @param tag string The node identifier.
---- Complexity: O(1).
+---@brief Manually flags a node as `dirty` to trigger re-calculation in the next tick.
+---@param tree table The tree instance.
+---@param tag string The tag of the node to flag.
+---@note Complexity: Time O(1), Space O(1)
 local function setDirty(tree, tag)
 	tree.nodeDict[tag].dirty = true
 end
 
---- Generates a Mermaid.js compatible graph string representing the tree structure.
---- @param tree table The tree instance.
---- @return string Mermaid graph definition.
---- Complexity: O(N * P).
+---@brief Generates a Mermaid.js string representing the current tree structure.
+---@param tree table The tree instance.
+---@return string mermaid The formatted Mermaid graph string.
+---@note Complexity: Time O(N + E), Space O(N + E)
 local function getMermaid(tree)
 	local mermaid = { "graph" }
 	for tag, node in pairs(tree.nodeDict) do
@@ -252,9 +239,9 @@ local function getMermaid(tree)
 	return table.concat(mermaid, "\n")
 end
 
---- Creates and initializes a new softtree instance.
---- @return table The new tree object.
---- Complexity: O(1).
+---@brief Factory function to create a new softtree instance.
+---@return table tree The new tree object with root node initialized.
+---@note Complexity: Time O(1), Space O(1)
 function softtree.newTree()
 	local tree = {
 		dirty = true,
@@ -266,14 +253,13 @@ function softtree.newTree()
 
 		insert = insert,
 		remove = remove,
-		load = loadTree,
-		update = updateTree,
-		run = runTree,
-		getTagged = getTagged,
-		setDirty = setDirty,
-		spreadDirty = spreadDirty,
+		tick = tickTree,
 
+		getTagged = getTagged,
 		getMermaid = getMermaid,
+
+		setDirty = setDirty,
+		spread = _spread,
 	}
 	setmetatable(tree, {
 		__newindex = function()
