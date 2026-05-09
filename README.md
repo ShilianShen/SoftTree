@@ -18,7 +18,7 @@ A Node is the execution unit, containing state information and lifecycle callbac
 | Property | Type | Description |
 | --- | --- | --- |
 | `parentTags` | `String[]` | Array of parent node tags |
-| `ready` | `bool` | Initialization status (post-load, pre-unload) |
+| `stale` | `bool` | Initialization status (post-load, pre-unload) |
 | `dirty` | `bool` | Data dirty flag; propagates automatically to children |
 | `entity` | `ptr` | Pointer to an externally managed entity |
 

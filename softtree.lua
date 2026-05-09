@@ -28,7 +28,7 @@ function softtree.newNode(parentTags, entity, load, update, run)
 	local node = {
 		parentTags = parentTags or {},
 		entity = entity or {},
-		ready = false,
+		stale = true,
 		dirty = true,
 		depth = 0,
 
@@ -180,11 +180,11 @@ local function loadTree(tree)
 	setParentsAndChildren(tree.nodeDict)
 	tree.nodeArray = getOptimizedNodeArray(tree.nodeDict)
 	setDepth(tree)
-	tree.ready = true
+	tree.stale = false
 	for _, node in ipairs(tree.nodeArray) do
-		if not node.ready then
+		if node.stale then
 			activateFunc(node, "load")
-			node.ready = true
+			node.stale = false
 		end
 	end
 end
@@ -258,7 +258,7 @@ end
 function softtree.newTree()
 	local tree = {
 		dirty = true,
-		ready = false,
+		stale = true,
 		nodeDict = {},
 		nodeArray = {},
 		root = softtree.newNode(),
