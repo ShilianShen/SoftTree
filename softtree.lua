@@ -192,14 +192,6 @@ function softtree.newTree()
 		spread = _spread,
 	}
 	tree:insert("root", nil, {})
-
-	setmetatable(tree, {
-		__newindex = function()
-			assert(false)
-		end,
-		__metatable = false,
-	})
-
 	return tree
 end
 
