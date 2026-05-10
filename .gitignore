@@ -3,3 +3,4 @@
 conf.lua
 main.lua
 *.local.*
+*_local.*
