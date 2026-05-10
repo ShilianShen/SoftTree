@@ -12,17 +12,15 @@ local function getConst(t)
 	return setmetatable(proxy, mt)
 end
 
-local function _newNode(parentTags, entity, load, update, run)
+local function _newNode(parentTags, entity, load, update)
 	local node = {
 		parentTags = parentTags or {},
 		entity = entity or {},
-		stale = true,
 		dirty = true,
 		depth = 0,
 
 		load = load,
 		update = update,
-		run = run,
 
 		parents = {},
 		children = {},
@@ -37,8 +35,8 @@ local function _newNode(parentTags, entity, load, update, run)
 	return node
 end
 
-local function insert(tree, tag, parentTags, entity, load, update, run)
-	local node = _newNode(parentTags, entity, load, update, run)
+local function insert(tree, tag, parentTags, entity, load, update)
+	local node = _newNode(parentTags, entity, load, update)
 	tag = tag or tostring(entity)
 	assert(tree.nodeDict[tag] == nil)
 	tree.nodeDict[tag] = node
@@ -127,12 +125,7 @@ end
 
 local function _spread(nodeArray)
 	for _, node in ipairs(nodeArray) do
-		if node.stale then
-			for _, child in pairs(node.children) do
-				child.stale = true
-				child.dirty = true
-			end
-		elseif node.dirty then
+		if node.dirty then
 			for _, child in pairs(node.children) do
 				child.dirty = true
 			end
@@ -151,25 +144,16 @@ local function tickTree(tree)
 	_spread(tree.nodeArray)
 
 	for _, node in ipairs(tree.nodeArray) do
-		if node.stale then
-			_activateFunc(node, "load")
-			node.stale = false
-			node.dirty = true
-		end
 		if node.dirty then
-			_activateFunc(node, "update")
+			_activateFunc(node, "load")
 			node.dirty = false
 		end
-		_activateFunc(node, "run")
+		_activateFunc(node, "update")
 	end
 end
 
 local function getTagged(tree, tag)
 	return tree.nodeDict[tag]
-end
-
-local function setStale(tree, tag)
-	tree.nodeDict[tag].stale = true
 end
 
 local function setDirty(tree, tag)
@@ -193,7 +177,6 @@ end
 function softtree.newTree()
 	local tree = {
 		dirty = true,
-		stale = true,
 		nodeDict = {},
 		nodeArray = {},
 		depth = 0,
@@ -205,7 +188,6 @@ function softtree.newTree()
 		getTagged = getTagged,
 		getMermaid = getMermaid,
 
-		setStale = setStale,
 		setDirty = setDirty,
 		spread = _spread,
 	}
