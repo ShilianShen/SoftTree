@@ -55,7 +55,7 @@ local function softeyes(tree)
 				y = i * nodeH,
 				text = love.graphics.newText(font, tag),
 			}
-			info.d = math.sqrt(((mouseX - info.x) / nodeW) ^ 2 + ((mouseY - info.y) / nodeH) ^ 2)
+			info.d = ((mouseX - info.x) / nodeW) ^ 2 + ((mouseY - info.y) / nodeH) ^ 2
 			info.s = (math.exp(-info.d) + 0.25 * math.exp(info.d)) / (math.exp(-info.d) + math.exp(info.d))
 			info.w = info.s * info.text:getWidth()
 			info.h = info.s * info.text:getHeight()
