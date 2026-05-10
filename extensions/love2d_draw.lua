@@ -1,4 +1,5 @@
 local font = love.graphics.newFont(48)
+local font2 = love.graphics.newFont(12)
 
 local function getString(tab, depth, result)
 	result = result or { "{" }
@@ -28,7 +29,7 @@ local function dump(tab, depth, indent)
 			ind = ind + indent
 		end
 	end
-	return table.concat(strings, "\n")
+	return strings
 end
 
 local function softeyes(tree)
@@ -68,6 +69,8 @@ local function softeyes(tree)
 		end
 	end
 
+	love.graphics.setColor(0, 0, 0, 0.5)
+	love.graphics.rectangle("fill", 0, 0, winW, winH)
 	love.graphics.setColor(1, 1, 1, 1)
 	for tag, node in pairs(tree.nodeDict) do
 		local info1 = visual[tag]
@@ -93,7 +96,17 @@ local function softeyes(tree)
 	for _, info in pairs(visual) do
 		local dist = (mouseX - info.x) ^ 2 + (mouseY - info.y) ^ 2
 		if dist < info.r ^ 2 then
-			love.graphics.print(dump(info.node.entity, 2))
+			local strings = dump(info.node.entity)
+			local y = (winH - font2:getHeight() * #strings) / 2
+			for _, string in ipairs(strings) do
+				local text = love.graphics.newText(font2, string)
+				love.graphics.setColor(0, 0, 0, 1)
+				love.graphics.rectangle("fill", 0, y, text:getWidth(), text:getHeight())
+				love.graphics.setColor(1, 1, 1, 1)
+				love.graphics.draw(text, 0, y)
+				y = y + text:getHeight()
+			end
+			break
 		end
 	end
 end
