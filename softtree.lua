@@ -133,7 +133,7 @@ local function _spread(nodeArray)
 	end
 end
 
-local function tickTree(tree)
+local function updateTree(tree)
 	if tree.dirty then
 		_setParentsAndChildren(tree.nodeDict)
 		tree.nodeArray = _getOptimizedNodeArray(tree.nodeDict)
@@ -183,7 +183,7 @@ function softtree.newTree()
 
 		insert = insert,
 		remove = remove,
-		tick = tickTree,
+		update = updateTree,
 
 		getTagged = getTagged,
 		getMermaid = getMermaid,
