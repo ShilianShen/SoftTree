@@ -153,7 +153,7 @@ local function updateTree(tree)
 end
 
 local function getTagged(tree, tag)
-	return tree.nodeDict[tag]
+	return tree.nodeDict[tag].entity
 end
 
 local function setDirty(tree, tag)
