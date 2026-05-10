@@ -123,8 +123,8 @@ local function _activateFunc(node, funcname)
 	end
 end
 
-local function _spread(nodeArray)
-	for _, node in ipairs(nodeArray) do
+local function spread(tree)
+	for _, node in ipairs(tree.nodeArray) do
 		if node.dirty then
 			for _, child in pairs(node.children) do
 				child.dirty = true
@@ -141,7 +141,7 @@ local function updateTree(tree)
 		tree.dirty = false
 	end
 
-	_spread(tree.nodeArray)
+	spread(tree)
 
 	for _, node in ipairs(tree.nodeArray) do
 		if node.dirty then
@@ -189,7 +189,7 @@ function softtree.newTree()
 		getMermaid = getMermaid,
 
 		setDirty = setDirty,
-		spread = _spread,
+		spread = spread,
 	}
 	tree:insert("root", nil, {})
 	return tree
