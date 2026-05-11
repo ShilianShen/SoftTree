@@ -91,8 +91,6 @@ local function draw(tree, visual)
 	local winW, winH = love.graphics.getDimensions()
 	local mouseX, mouseY = love.mouse.getPosition()
 
-	love.graphics.setColor(0, 0, 0, 0.5)
-	love.graphics.rectangle("fill", 0, 0, winW, winH)
 	love.graphics.setColor(1, 1, 1, 1)
 	for tag, node in pairs(tree.nodeDict) do
 		local info1 = visual[tag]
