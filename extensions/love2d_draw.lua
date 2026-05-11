@@ -17,12 +17,12 @@ local function lpairs(t)
 	end
 end
 
-local function str(tab, depth, result)
+local function dump(tab, depth, result)
 	result = result or { "{" }
 	for key, value in lpairs(tab) do
 		if type(value) == "table" and depth > 0 then
 			table.insert(result, key .. " = {")
-			str(value, depth - 1, result)
+			dump(value, depth - 1, result)
 		else
 			table.insert(result, key .. " = " .. tostring(value))
 		end
@@ -31,21 +31,27 @@ local function str(tab, depth, result)
 	return result
 end
 
-local function dump(tab, depth, indent)
+local function drawEntity(tab, depth, indent)
 	depth = depth or 0
-	indent = indent or 4
-	local strings = str(tab, depth)
-	local ind = 0
-	for i, string in ipairs(strings) do
+	indent = indent or 16
+	local strings = dump(tab, depth)
+	local x, y = 0, (love.graphics.getHeight() - font2:getHeight() * #strings) / 2
+	for _, string in ipairs(strings) do
 		if string == "}" then
-			ind = ind - indent
+			x = x - indent
 		end
-		strings[i] = string.rep(" ", ind) .. string
+
+		local text = love.graphics.newText(font2, string)
+		love.graphics.setColor(0, 0, 0, 1)
+		love.graphics.rectangle("fill", x, y, text:getWidth(), text:getHeight())
+		love.graphics.setColor(1, 1, 1, 1)
+		love.graphics.draw(text, x, y)
+		y = y + text:getHeight()
+
 		if string.match(string, "{") then
-			ind = ind + indent
+			x = x + indent
 		end
 	end
-	return strings
 end
 
 local function calc(tree)
@@ -88,7 +94,6 @@ local function calc(tree)
 end
 
 local function draw(tree, visual)
-	local winW, winH = love.graphics.getDimensions()
 	local mouseX, mouseY = love.mouse.getPosition()
 
 	love.graphics.setColor(1, 1, 1, 1)
@@ -116,16 +121,7 @@ local function draw(tree, visual)
 	for _, info in pairs(visual) do
 		local dist = (mouseX - info.x) ^ 2 + (mouseY - info.y) ^ 2
 		if dist < info.r ^ 2 then
-			local strings = dump(info.node.entity)
-			local y = (winH - font2:getHeight() * #strings) / 2
-			for _, string in ipairs(strings) do
-				local text = love.graphics.newText(font2, string)
-				love.graphics.setColor(0, 0, 0, 1)
-				love.graphics.rectangle("fill", 0, y, text:getWidth(), text:getHeight())
-				love.graphics.setColor(1, 1, 1, 1)
-				love.graphics.draw(text, 0, y)
-				y = y + text:getHeight()
-			end
+			drawEntity(info.node.entity)
 			break
 		end
 	end
