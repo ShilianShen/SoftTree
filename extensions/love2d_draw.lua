@@ -1,9 +1,25 @@
 local font1 = love.graphics.newFont(48)
 local font2 = love.graphics.newFont(12)
 
+local function lpairs(t)
+	local keys = {}
+	for k in pairs(t) do
+		table.insert(keys, k)
+	end
+	table.sort(keys)
+
+	local i = 0
+	return function()
+		i = i + 1
+		if keys[i] then
+			return keys[i], t[keys[i]]
+		end
+	end
+end
+
 local function str(tab, depth, result)
 	result = result or { "{" }
-	for key, value in pairs(tab) do
+	for key, value in lpairs(tab) do
 		if type(value) == "table" and depth > 0 then
 			table.insert(result, key .. " = {")
 			str(value, depth - 1, result)
