@@ -1,12 +1,12 @@
-local font = love.graphics.newFont(48)
+local font1 = love.graphics.newFont(48)
 local font2 = love.graphics.newFont(12)
 
-local function getString(tab, depth, result)
+local function str(tab, depth, result)
 	result = result or { "{" }
 	for key, value in pairs(tab) do
 		if type(value) == "table" and depth > 0 then
 			table.insert(result, key .. " = {")
-			getString(value, depth - 1, result)
+			str(value, depth - 1, result)
 		else
 			table.insert(result, key .. " = " .. tostring(value))
 		end
@@ -18,7 +18,7 @@ end
 local function dump(tab, depth, indent)
 	depth = depth or 0
 	indent = indent or 4
-	local strings = getString(tab, depth)
+	local strings = str(tab, depth)
 	local ind = 0
 	for i, string in ipairs(strings) do
 		if string == "}" then
@@ -32,7 +32,7 @@ local function dump(tab, depth, indent)
 	return strings
 end
 
-local function softeyes(tree)
+local function calc(tree)
 	local mesh = {}
 	for tag, node in pairs(tree.nodeDict) do
 		mesh[node.depth] = mesh[node.depth] or {}
@@ -53,13 +53,13 @@ local function softeyes(tree)
 				node = tree.nodeDict[tag],
 				x = j * nodeW + winW * (1 - k),
 				y = i * nodeH,
-				text = love.graphics.newText(font, tag),
+				text = love.graphics.newText(font1, tag),
 			}
 			info.d = ((mouseX - info.x) / nodeW) ^ 2 + ((mouseY - info.y) / nodeH) ^ 2
 			info.s = (math.exp(-info.d) + 0.25 * math.exp(info.d)) / (math.exp(-info.d) + math.exp(info.d))
 			info.w = info.s * info.text:getWidth()
 			info.h = info.s * info.text:getHeight()
-			info.r = info.s * font:getHeight() / 2
+			info.r = info.s * font1:getHeight() / 2
 			if not tree.nodeDict[tag].dirty then
 				info.c = { 0, 0.5, 0, 1 }
 			else
@@ -68,6 +68,12 @@ local function softeyes(tree)
 			visual[tag] = info
 		end
 	end
+	return visual
+end
+
+local function draw(tree, visual)
+	local winW, winH = love.graphics.getDimensions()
+	local mouseX, mouseY = love.mouse.getPosition()
 
 	love.graphics.setColor(0, 0, 0, 0.5)
 	love.graphics.rectangle("fill", 0, 0, winW, winH)
@@ -111,4 +117,12 @@ local function softeyes(tree)
 	end
 end
 
-return softeyes
+local function soft(tree)
+	love.graphics.push("all")
+	love.graphics.setLineWidth(1)
+	local visual = calc(tree)
+	draw(tree, visual)
+	love.graphics.pop()
+end
+
+return soft
