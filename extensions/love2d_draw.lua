@@ -94,7 +94,7 @@ local function calc(tree)
 end
 
 local function comp(info, jnfo)
-	return info.d <= jnfo.d
+	return info.d >= jnfo.d
 end
 
 local function draw(tree, visual)
