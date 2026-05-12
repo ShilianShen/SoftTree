@@ -93,10 +93,6 @@ local function calc(tree)
 	return visual
 end
 
-local function comp(info, jnfo)
-	return info.d >= jnfo.d
-end
-
 local function draw(tree, visual)
 	local mouseX, mouseY = love.mouse.getPosition()
 
@@ -108,8 +104,14 @@ local function draw(tree, visual)
 			love.graphics.line(info1.x, info1.y, info2.x, info2.y)
 		end
 	end
-	table.sort(visual, comp)
+	local indices = {}
 	for _, info in pairs(visual) do
+		indices[#indices + 1] = info
+	end
+	table.sort(indices, function(info, jnfo)
+		return info.s < jnfo.s
+	end)
+	for _, info in ipairs(indices) do
 		love.graphics.setColor(0, 0, 0, 1)
 		love.graphics.circle("fill", info.x, info.y, info.r)
 
