@@ -10,7 +10,9 @@ local scaleMax = 1
 local scaleMin = 0.5
 local infoDict = {}
 local mouseX, mouseY
-local winW, winH
+local bufferT = 1
+local winW, winH = 0, 0
+local time = 0
 
 local function lpairs(t)
 	local keys = {}
@@ -78,6 +80,7 @@ local function calc(tree)
 		for j = 1, #mesh[i] do
 			local tag = mesh[i][j]
 			local info = infoDict[tag]
+			local node = info.node
 			info.x = j * nodeW + winW * (1 - k)
 			info.y = i * nodeH
 			info.d = ((mouseX - info.x) / nodeW) ^ 2 + ((mouseY - info.y) / nodeH) ^ 2
@@ -85,6 +88,8 @@ local function calc(tree)
 			info.w = info.s * info.text:getWidth()
 			info.h = info.s * info.text:getHeight()
 			info.r = info.s * font1:getHeight() / 2
+			info.t = node.dirty and time or (info.t or 0)
+			info.k = math.max(0, 1 - (time - info.t) / bufferT)
 		end
 	end
 end
@@ -121,8 +126,11 @@ local function drawNode(info, theme)
 	love.graphics.setColor(theme or lightColor)
 	love.graphics.circle("line", info.x, info.y, info.r)
 
-	love.graphics.setColor(info.node.dirty and dirtyColor or cleanColor)
+	love.graphics.setColor(cleanColor)
 	love.graphics.rectangle("fill", info.x, info.y, info.w, info.h)
+
+	love.graphics.setColor(dirtyColor)
+	love.graphics.rectangle("fill", info.x, info.y, info.w * info.k, info.h)
 
 	love.graphics.setColor(theme or lightColor)
 	love.graphics.draw(info.text, info.x, info.y, 0, info.s, info.s)
@@ -160,6 +168,7 @@ end
 local function call(tree)
 	winW, winH = love.graphics.getDimensions()
 	mouseX, mouseY = love.mouse.getPosition()
+	time = love.timer.getTime()
 	love.graphics.push("all")
 	love.graphics.setLineWidth(1)
 	calc(tree)
