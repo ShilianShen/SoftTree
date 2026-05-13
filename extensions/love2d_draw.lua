@@ -153,6 +153,7 @@ local function draw(tree)
 		local dist = (mouseX - info.x) ^ 2 + (mouseY - info.y) ^ 2
 		if dist < info.r ^ 2 then
 			drawEntity(info.node.entity)
+			love.graphics.setLineWidth(2)
 			for tag2, _ in pairs(info.node.children) do
 				drawEdge(info, infoDict[tag2], shineColor)
 			end
