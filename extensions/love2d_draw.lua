@@ -4,7 +4,7 @@ local font2 = love.graphics.newFont(12)
 local function lpairs(t)
 	local keys = {}
 	for k in pairs(t) do
-		table.insert(keys, k)
+		table.insert(keys, tostring(k))
 	end
 	table.sort(keys)
 
