@@ -94,6 +94,17 @@ local function calc(tree)
 	end
 end
 
+local function merge(t1, t2)
+	local t = {}
+	for k, v in pairs(t1) do
+		t[k] = v
+	end
+	for k, v in pairs(t2) do
+		t[k] = v
+	end
+	return t
+end
+
 local function drawEntity(tab, depth, indent)
 	depth = depth or 0
 	indent = indent or 16
@@ -154,11 +165,13 @@ local function draw(tree)
 		if dist < info.r ^ 2 then
 			drawEntity(info.node.entity)
 			love.graphics.setLineWidth(2)
-			for tag2, _ in pairs(info.node.children) do
-				drawEdge(info, infoDict[tag2], shineColor)
+			for tag2, _ in pairs(merge(info.node.children, info.node.parents)) do
+				local info2 = infoDict[tag2]
+				drawEdge(info, info2, shineColor)
 			end
-			for tag2, _ in pairs(info.node.parents) do
-				drawEdge(info, infoDict[tag2], shineColor)
+			for tag2, _ in pairs(merge(info.node.children, info.node.parents)) do
+				local info2 = infoDict[tag2]
+				drawNode(info2, shineColor)
 			end
 			drawNode(info, shineColor)
 			break
