@@ -112,7 +112,22 @@ end
 
 local function drawEdge(info1, info2, theme)
 	love.graphics.setColor(theme or lightColor)
-	love.graphics.line(info1.x, info1.y, info2.x, info2.y)
+	local smooth = 0.5
+	local vertices = {
+		info1.x,
+		info1.y,
+
+		info1.x,
+		(1 - smooth) * info1.y + smooth * info2.y,
+
+		info2.x,
+		smooth * info1.y + (1 - smooth) * info2.y,
+
+		info2.x,
+		info2.y,
+	}
+	local curve = love.math.newBezierCurve(vertices)
+	love.graphics.line(curve:render())
 end
 
 local function drawNode(info, theme)
