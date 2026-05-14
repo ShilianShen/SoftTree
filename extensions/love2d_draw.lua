@@ -209,6 +209,7 @@ local function call(_tree)
 	winW, winH = love.graphics.getDimensions()
 	mouseX, mouseY = love.mouse.getPosition()
 	tree = _tree
+	tree:spread()
 	time = love.timer.getTime()
 	love.graphics.push("all")
 	love.graphics.setLineWidth(1)
