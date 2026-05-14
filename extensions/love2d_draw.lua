@@ -6,13 +6,13 @@ local shineColor = { 0.9, 0.8, 0.2 }
 local nightColor = { 0.1, 0.1, 0.12 }
 local lightColor = { 0.95, 0.95, 0.9 }
 local smooth = 0.5
-local scaleMax = 1
-local scaleMin = 0.5
+local scaleMax, scaleMin = 1, 0.5
 local infoDict = {}
-local mouseX, mouseY
+local mouseX, mouseY = 0, 0
 local bufferT = 1
 local winW, winH = 0, 0
 local time = 0
+local tree = {}
 
 local function lpairs(t)
 	local keys = {}
@@ -44,7 +44,38 @@ local function dump(tab, depth, result)
 	return result
 end
 
-local function calc(tree)
+local function merge(t1, t2)
+	local t = {}
+	for k, v in pairs(t1) do
+		t[k] = v
+	end
+	for k, v in pairs(t2) do
+		t[k] = v
+	end
+	return t
+end
+
+local function comp(tag1, tag2)
+	local value1, count1 = 0, 1
+	local value2, count2 = 0, 1
+	for parentTag, _ in pairs(tree.nodeDict[tag1].parents) do
+		value1 = value1 + infoDict[parentTag].i
+		count1 = count1 + 1
+	end
+	for parentTag, _ in pairs(tree.nodeDict[tag2].parents) do
+		value2 = value2 + infoDict[parentTag].i
+		count2 = count2 + 1
+	end
+	value1 = value1 * count2
+	value2 = value2 * count1
+	if value1 == value2 then
+		return tag1 < tag2
+	else
+		return value1 < value2
+	end
+end
+
+local function calc()
 	-- remove
 	for tag, _ in pairs(infoDict) do
 		if tree.nodeDict[tag] == nil then
@@ -67,9 +98,15 @@ local function calc(tree)
 	for tag, node in pairs(tree.nodeDict) do
 		mesh[node.depth] = mesh[node.depth] or {}
 		table.insert(mesh[node.depth], tag)
+		infoDict[tag].i = #mesh[node.depth]
 	end
-	for _, row in ipairs(mesh) do
-		table.sort(row)
+
+	-- sort
+	for i = 1, #mesh do
+		table.sort(mesh[i], comp)
+		for j = 1, #mesh[i] do
+			infoDict[mesh[i][j]].i = j
+		end
 	end
 
 	-- calc
@@ -92,17 +129,6 @@ local function calc(tree)
 			info.k = math.max(0, 1 - (time - info.t) / bufferT)
 		end
 	end
-end
-
-local function merge(t1, t2)
-	local t = {}
-	for k, v in pairs(t1) do
-		t[k] = v
-	end
-	for k, v in pairs(t2) do
-		t[k] = v
-	end
-	return t
 end
 
 local function drawEntity(tab, depth, indent)
@@ -147,7 +173,7 @@ local function drawNode(info, theme)
 	love.graphics.draw(info.text, info.x, info.y, 0, info.s, info.s)
 end
 
-local function draw(tree)
+local function draw()
 	for tag, node in pairs(tree.nodeDict) do
 		local info1 = infoDict[tag]
 		for tag2, _ in pairs(node.children) do
@@ -179,14 +205,15 @@ local function draw(tree)
 	end
 end
 
-local function call(tree)
+local function call(_tree)
 	winW, winH = love.graphics.getDimensions()
 	mouseX, mouseY = love.mouse.getPosition()
+	tree = _tree
 	time = love.timer.getTime()
 	love.graphics.push("all")
 	love.graphics.setLineWidth(1)
-	calc(tree)
-	draw(tree)
+	calc()
+	draw()
 	love.graphics.pop()
 end
 
